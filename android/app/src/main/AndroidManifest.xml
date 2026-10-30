@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-feature android:name="android.software.midi" android:required="true"/>
+    <uses-feature android:name="android.hardware.usb.host" android:required="false"/>
+    <application android:label="FM1 Sampler" android:theme="@android:style/Theme.Material.Light">
+        <activity android:name=".SamplerActivity" android:exported="true" android:screenOrientation="sensorLandscape"
+                  android:theme="@android:style/Theme.Material.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

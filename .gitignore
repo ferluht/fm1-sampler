@@ -1,0 +1,17 @@
+# build output
+engine/build/
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+firmware/build/
+*.o
+*.d
+*.apk
+*.ppm
+*.raw
+__pycache__/
+# stale firmware page of the sibling fm1-daw project
+firmware/FM1-DAW-Workbench.html
+android/app/.cxx/
+android/**/.cxx/
