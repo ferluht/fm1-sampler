@@ -1,6 +1,6 @@
 # fm1-sampler
 
-A **sampler + audio looper** (8 tracks) for Android and [iOS](https://github.com/ferluht/fm1-sampler) with the M-VAVE FM-1 as its hardware front end. The phone does all the sound; the FM-1 is the
+A **sampler + audio looper** (8 tracks) for Android and [iOS](https://github.com/ferluht/fm1-sampler/pull/4) with the M-VAVE FM-1 as its hardware front end. The phone does all the sound; the FM-1 is the
 control surface (keys, buttons, 7 encoders), the second screen (240x240, drawn with SysEx commands) and the audio output (USB audio).
 All DSP is original code in `engine/dsp` (no third-party audio engine); the only library is KissFFT (BSD) for the Paulstretch mode.
 
