@@ -14,8 +14,7 @@ void fm1_device_start(void (*scan)(void))
     REG32(0x10808U) = 0xffffffffU;
     REG32(0x10804U) = 0;
     REG32(0x10800U) = 0x4009U;
-    fm1_device_adc_register(3U); /* PB01 battery */
-    fm1_device_adc_register(4U); /* PB06 master */
+    /* The input ISR now schedules both the pots and the key rows on the ADC. */
     input_scan = scan;
     REG32(0x10900U) = 0x4000U;
     REG32(0x10904U) = 0;

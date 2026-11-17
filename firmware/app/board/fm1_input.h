@@ -31,6 +31,8 @@ static struct {
 static volatile uint8_t fm1_led[FM1_NCOL];
 static uint8_t fm1_scan_bytes[2] __attribute__((aligned(4)));
 
+#include "velocity/scan.h"
+
 #ifndef FM1_SCAN_REG
 #define FM1_SCAN_REG(offset) (*(volatile uint32_t *)(0x11e00u+(offset)))
 #endif
@@ -60,7 +62,7 @@ static inline __attribute__((always_inline)) void fm1_scan_latch(unsigned column
     FM1_PR(FM1_PA,FM1_OUT)&=~a_mask;FM1_PR(FM1_PH,FM1_OUT)&=~h_mask;
     FM1_PR(FM1_PA,FM1_OUT)|=1u<<1;
     FM1_PR(FM1_PA,FM1_OUT)&=~(1u<<1);
-    unsigned leds=fm1_led[column];
+    unsigned leds=(unsigned)sampler_adc_leds(column, fm1_led[column]);
     FM1_PR(FM1_PA,FM1_OUT)|=(leds&6u)<<8;
     FM1_PR(FM1_PH,FM1_OUT)|=((leds&8u)<<3)|((leds&16u)<<5);
     fm1_in.column=(uint8_t)column;
@@ -111,6 +113,7 @@ static FM1_AUDIO_CODE void fm1_scan_decode(void)
 }
 static FM1_AUDIO_CODE void fm1_input_tick(void)
 {
+    sampler_adc_finish(fm1_in.rows);
     /* DMA runs between timer ticks. Never wait inside the scan interrupt. */
     if(!(FM1_SCAN_REG(0)&(1u<<15))) {
         if(++fm1_in.stalled==20) {
@@ -122,12 +125,19 @@ static FM1_AUDIO_CODE void fm1_input_tick(void)
     }
     fm1_in.stalled=0;
     unsigned column=fm1_in.column;
+    /* LED drive can change the apparent row voltage on the shared matrix. */
+    FM1_PR(FM1_PA, FM1_OUT) &= ~((1u << 9) | (1u << 10));
+    FM1_PR(FM1_PH, FM1_OUT) &= ~((1u << 6) | (1u << 9));
     uint32_t a=FM1_PR(FM1_PA,FM1_IN),b=FM1_PR(FM1_PB,FM1_IN);
     fm1_in.rows[column]=(uint8_t)(~((a&1)|((a>>4)&30)|((b>>2)&32))&63);
     unsigned next=fm1_in.queued;
+    if (column == 10) {
+        fm1_scan_decode();
+        sampler_adc_next_phase();
+    }
     fm1_scan_latch(next);
     fm1_scan_queue(next==10?0:next+1);
-    if(column==10)fm1_scan_decode();
+    sampler_adc_start(next);
 }
 static void fm1_input_init(void)
 {
@@ -143,10 +153,11 @@ static void fm1_input_init(void)
     FM1_PR(FM1_PA,FM1_HD0)|=3u<<9;FM1_PR(FM1_PA,FM1_HD)|=3u<<9;
     FM1_PR(FM1_PH,FM1_HD0)|=h_out;FM1_PR(FM1_PH,FM1_HD)|=h_out;
     FM1_IO_MAP|=1u<<17;FM1_SCAN_REG(4)=29;FM1_SCAN_REG(0)=(1u<<14)|(1u<<5)|1u;
+    sampler_adc_init(fm1_key_pin + 14);
     fm1_scan_queue(0);
     unsigned wait=100000;
     while(!(FM1_SCAN_REG(0)&(1u<<15))&&--wait) {}
-    if(wait) {fm1_scan_latch(0);fm1_scan_queue(1);}
+    if(wait) {fm1_scan_latch(0);fm1_scan_queue(1);sampler_adc_start(0);}
 }
 static void fm1_led_key(uint32_t key,int on)
 {
