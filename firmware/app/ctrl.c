@@ -5,8 +5,9 @@
 #include <string.h>
 #include "fm1.h"
 #include "instrument.h"
+#include "sampler_touch.h"
 
-enum { SYSEX_MAX = 300, SYSEX_Q = 4, KEYS = 27, BUTTONS = 14, ENC = 7, KEY_BASE = 53 };
+enum { SYSEX_MAX = 300, SYSEX_Q = 4, KEYS = SAMPLER_KEYS, BUTTONS = 14, ENC = 7, KEY_BASE = 53 };
 enum { CMD_LED = 1, CMD_CLEAR = 2, CMD_RECT = 3, CMD_TEXT = 4, CMD_PING = 5, CMD_SCALE = 6, CMD_PAL = 8, CMD_BLIT = 9, CMD_BATCH = 10, CMD_NOP = 0x7e };   /* numbers are the wire format (PROTOCOL.md): keep them explicit */
 enum { EV_SCALE = 0x41, EV_REDRAW = 0x42 };
 enum { BTN_OCT_DOWN = 0, BTN_OCT_UP = 1, BTN_SCL = 3 };
@@ -28,6 +29,7 @@ static void barrier(void)
 int ctrl_sysex(const uint8_t *m, size_t n)
 {
     if (n < 7 || m[0] != 0xf0 || m[1] != 0x7d || m[2] != 'D' || m[3] != 'A' || m[4] != 'W') return 0;
+    if (n < 8 || m[5] != 1 || m[n - 1] != 0xf7) return 1;
     rx_frames++; rx_bytes += (uint32_t)n;
     uint8_t slot = rx_head;
     if (n > SYSEX_MAX || rxq[slot].length) { rx_dropped++; return 1; }
@@ -131,14 +133,16 @@ static int midi3(uint8_t status, uint8_t a, uint8_t b)
     uint8_t m[3] = {status, a, b};
     return fm1_midi_send_port(FM1_MIDI_USB, m, 3);
 }
-static void sysex_reply(const uint8_t *body, unsigned n)
+static int sysex_reply(const uint8_t *body, unsigned n)
 {
-    uint8_t m[40] = {0xf0, 0x7d, 'D', 'A', 'W', 1};
-    if (n > sizeof m - 7) return;
+    uint8_t m[128] = {0xf0, 0x7d, 'D', 'A', 'W', 1};
+    if (n > sizeof m - 7) return -1;
     memcpy(m + 6, body, n);
     m[6 + n] = 0xf7;
-    (void)fm1_midi_send_port(FM1_MIDI_USB, m, 7 + n);
+    return fm1_midi_send_port(FM1_MIDI_USB, m, 7 + n);
 }
+
+#include "sampler_calibration.inc"
 
 static void put32(uint8_t *p, uint32_t v)
 {
@@ -278,6 +282,7 @@ static void screen_cmd(unsigned cmd, const uint8_t *p, unsigned len)
         }
         break;
     case CMD_BATCH: screen_batch(p, len); break;
+    case CMD_VELOCITY: velocity_command(p, len); break;
     case CMD_SCALE:  /* scale root octave+3 mode */
         if (len >= 4) scale_set(p[0], p[1], (int)p[2] - 3, p[3]);
         break;
@@ -292,6 +297,7 @@ void groove_screen_init(void)
     memset(held_count, 0, sizeof held_count);
     knob_sent = -100; battery_at = 0; overlay = overlay_dirty = 0;
     rx_head = rx_tail = 0;
+    velocitySnapshotPending = velocityCapabilitiesPending = 0;
     for (unsigned i = 0; i < SYSEX_Q; ++i) rxq[i].length = 0;
     fm1_controls_init();
     for (unsigned key = 0; key < 41; ++key) fm1_led_set(key, 0);
@@ -306,9 +312,10 @@ static void key_down(unsigned key)
 {
     uint8_t notes[3];
     const unsigned n = key_notes(key, notes);
+    const uint8_t velocity = sampler_key_velocity(key);
     unsigned sent = 0;
     for (unsigned j = 0; j < n; ++j) {
-        if (midi3(0x90, notes[j], n > 1 ? 85 : 100)) break;
+        if (midi3(0x90, notes[j], velocity)) break;
         held_notes[key][sent++] = notes[j];
     }
     held_count[key] = (uint8_t)sent;
@@ -392,6 +399,7 @@ void groove_screen_control(void)
         rxq[rx_tail].length = 0;
         rx_tail = (uint8_t)((rx_tail + 1) % SYSEX_Q);
     }
+    velocity_send_pending();
     if (overlay && overlay_dirty) { draw_overlay(); overlay_dirty = 0; }
 }
 

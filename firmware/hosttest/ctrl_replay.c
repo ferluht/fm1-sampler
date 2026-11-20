@@ -12,6 +12,11 @@ static uint16_t fb[240 * 240];
 static unsigned char midi_log[4096][3]; static int midi_n; static int midi_full;
 static unsigned char sx_log[4096][40]; static int sx_len[4096]; static int sx_n;
 void fm1_controls_init(void) {}
+uint8_t sampler_key_velocity(unsigned key) { (void)key; return SAMPLER_DEFAULT_VELOCITY; }
+void sampler_velocity_preview(uint8_t curve, uint8_t learn) { (void)curve; (void)learn; }
+void sampler_velocity_capture(struct sampler_velocity_profile *profile) { memset(profile, 0, sizeof *profile); }
+void sampler_velocity_reset(void) {}
+int sampler_velocity_apply(const struct sampler_velocity_profile *profile) { (void)profile; return 0; }
 void fm1_controls_read(struct fm1_controls *s) { *s = ctl; memset(ctl.encoders, 0, sizeof ctl.encoders); }
 void fm1_led_set(unsigned k, int on) { (void)k; (void)on; }
 uint32_t fm1_millis(void) { return ms; }

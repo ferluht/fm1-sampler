@@ -8,7 +8,8 @@
 | Encoders 0..6 | ch1 CC 16+i, relative: 64 + delta (-63..+63). Not forwarded while SCL is held |
 | Knob (10-bit) | ch1 CC 7 (MSB = adc>>3) then CC 39 ((adc&7)<<4) |
 | Battery | ch1 CC 24, adc>>3, every 2 s |
-Velocity is fixed (100; chords 85). Failed sends (queue full) are retried; state only advances on success.
+Note On on channel 1 carries the sensed velocity (1..127). All notes of a chord share the same value.
+If a key has no usable measurement, its value is 100. Panel buttons on channel 2 still use 100. Failed sends (queue full) are retried; state only advances on success.
 
 ## Scales (firmware)
 Tables CHROM MIX MAJ MIN HMIN PHRYG MIN+ plus OFF (plain chromatic keyboard from F3). Key index k (0..26 from the left) -> degree k of the
@@ -22,6 +23,7 @@ drawing until SCL is released, then sends EV_REDRAW. OCT -/+ shift the octave (-
 | 40 PONG | id(2) millis(5) rx_frames(5) rx_bytes(5) rx_dropped(5) |
 | 41 SCALE | scale root octave+3 mode (also repeated every 2 s) |
 | 42 REDRAW | (none) the phone must repaint the whole screen |
+| 43 VELOCITY | `[0]` capability reply or the 101-byte profile below |
 
 ## Phone -> FM-1 SysEx `F0 7D 'D' 'A' 'W' 01 <cmd> <payload> F7`
 All values 7-bit. n14 = 2 bytes (hi,lo). color = 3 bytes, RGB565 split 2/7/7 bits. Frames <= 300 B, queue depth 4.
@@ -36,7 +38,13 @@ All values 7-bit. n14 = 2 bytes (hi,lo). color = 3 bytes, RGB565 split 2/7/7 bit
 | 08 PALETTE | 16 x color: the palette of BLIT |
 | 09 BLIT | x n14, y n14, w n14, h n14 (w*h <= 768), tokens: colour(4)<<3 \| (run-1); run field 7 = next byte adds 8.. |
 | 0A BATCH | repeated { length n14, cmd, payload }: many small commands in one frame (the FM-1 queue counts frames, not bytes) |
+| 0C VELOCITY | `[0, curve+5, learn]` preview, `[1]` freeze and send profile, `[2]` reset, `[3, profile…]` load and freeze, `[4]` query capability |
 | 7E NOP | ignored, counted (throughput test) |
+
+A velocity profile starts with `curve+5` (0..10). It has 20 records ordered by physical key from F3 through C5.
+Each record is `[hard high7, hard low7, soft high7, soft low7, landings]`.
+Hard is 201..940, soft is at least 80 above hard and at most 1020, and landings is 0..127.
+Learning starts off at power-on. The seven PA10 keys use their separate fixed curve and are not part of the profile.
 
 ## Audio
 Phone -> FM-1 USB audio (44.1 kHz, stereo) is mixed to the jack by stock app/audio_output.c. The stock engine stays silent (no notes reach it).
